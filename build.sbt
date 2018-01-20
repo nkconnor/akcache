@@ -1,9 +1,14 @@
+import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
+
+definedTests in MultiJvm <<= definedTests in Test
+
 lazy val akkaHttpVersion = "10.0.11"
 lazy val akkaVersion    = "2.5.8"
 
 lazy val playVersion = "2.6.11"
 
 lazy val root = (project in file(".")).
+  settings(multiJvmSettings: _*).
   settings(
     inThisBuild(List(
       organization    := "com.nconnor.akcache",
@@ -24,5 +29,6 @@ lazy val root = (project in file(".")).
 
 
       "org.scalatest"     %% "scalatest"            % "3.0.1"         % Test
-    )
-  )
+    )).
+  configs(MultiJvm)
+

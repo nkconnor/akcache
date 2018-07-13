@@ -12,8 +12,6 @@ import scala.concurrent.duration._
 import com.nconnor.akcache.core._
 import com.nconnor.akcache.core.models._
 
-import scala.util.{Failure, Success}
-
 /**
   * Author: Nicholas Connor
   * Date: 1/19/18
@@ -44,11 +42,15 @@ trait AkCluster {
   }
 }
 
-class AkCache(val system: ActorSystem) extends AkCluster {
+abstract class AkCache { self: AkCluster =>
   /**
     *
     */
-  implicit val execIn = system.dispatcher
+  def system: ActorSystem
+  /**
+    *
+    */
+  implicit lazy val execIn = system.dispatcher
 
   /**
     *
@@ -58,7 +60,7 @@ class AkCache(val system: ActorSystem) extends AkCluster {
   /**
     *
     */
-  private val shardRegion: ActorRef = ClusterSharding(system).start(
+  private lazy val shardRegion: ActorRef = ClusterSharding(system).start(
     typeName = "AkCacheActor",
     entityProps = Props[AkCacheActor],
     settings = ClusterShardingSettings(system),
@@ -72,13 +74,13 @@ class AkCache(val system: ActorSystem) extends AkCluster {
     * @param value
     * @param expiration
     */
-  def set(key: String, value: Any, expiration: Duration): Done = shardRegion ! AkSet(key, value, Some(expiration))
+  def akSet(key: String, value: Any, expiration: Duration): Done = shardRegion ! AkSet(key, value, Some(expiration))
 
   /**
     *
     * @param key
     */
-  def remove(key: String): Done = shardRegion ! AkRemove(key)
+  def akRemove(key: String): Done = shardRegion ! AkRemove(key)
 
   /**
     *
@@ -89,11 +91,12 @@ class AkCache(val system: ActorSystem) extends AkCluster {
     * @tparam A
     * @return
     */
-  def getOrElse[A](key: String, expiration: Duration)(orElse: => Future[A])(implicit evidence$1: ClassTag[A]): Future[A] =
-    get(key).flatMap {                               // why does the Async imply anything about obtaining A?
-      _.getOrElse(orElse).andThen {
-        case Success(item) => shardRegion ! AkSet(key, item, Some(expiration))
-        case Failure(ex) => throw ex
+  def akGetOrElseAsync[A](key: String, expiration: Duration)(orElse: => Future[A])(implicit evidence$1: ClassTag[A]): Future[A] =
+    akGet[A](key).flatMap { // why does the Async imply anything about obtaining A?
+      case Some(item) => Future.successful(item)
+      case None => orElse map { item =>
+        shardRegion ! AkSet(key, item, Some(expiration))
+        item
       }
     }
 
@@ -106,8 +109,8 @@ class AkCache(val system: ActorSystem) extends AkCluster {
     * @tparam A
     * @return
     */
-  def getOrElse[A](key: String, expiration: Duration)(orElse: => A)(implicit evidence$1: ClassTag[A]): Future[A] =
-    get(key).map {
+  def akGetOrElse[A](key: String, expiration: Duration)(orElse: => A)(implicit evidence$1: ClassTag[A]): Future[A] =
+    akGet[A](key).map {
       _.getOrElse {
         val item = orElse
         shardRegion ! AkSet(key, item, Some(expiration))
@@ -122,7 +125,7 @@ class AkCache(val system: ActorSystem) extends AkCluster {
     * @tparam T
     * @return
     */
-  def get[T](key: String)(implicit evidence$2: ClassTag[T]): Future[Option[T]] =
+  def akGet[T](key: String)(implicit evidence$2: ClassTag[T]): Future[Option[T]] =
     shardRegion.ask(AkGet(key, None))
       .mapTo[Option[AkItem[T]]]
       .map(_.map(_.any))

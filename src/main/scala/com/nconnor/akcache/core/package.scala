@@ -25,4 +25,12 @@ package object core {
     * @return
     */
   implicit def future2T[T](future: Future[T]): T = Await.result(future, 10.seconds)
+
+  /**
+    *
+    * @param future
+    * @tparam T
+    * @return
+    */
+  implicit def futureOpt2T[T](future: Future[Option[T]]): Option[T] = Await.result(future, 10.seconds)
 }

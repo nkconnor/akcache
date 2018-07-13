@@ -1,10 +1,28 @@
 import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
 
-definedTests in MultiJvm <<= definedTests in Test
+// POM settings for Sonatype
+organization := "com.nconnor"
+homepage := Some(url("https://github.com/nkconnor/akcache"))
+scmInfo := Some(ScmInfo(url("https://github.com/nkconnor/akcache"), "git@github.com:nkconnor/akcache.git"))
+
+developers := List(
+  Developer("nkconnor", "Nicholas Connor", "email@nconnor.com", url("https://github.com/nkconnor"))
+)
+
+licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))
+publishMavenStyle := true
+
+// Add sonatype repository settings
+publishTo := Some(
+  if (isSnapshot.value)
+    Opts.resolver.sonatypeSnapshots
+  else
+    Opts.resolver.sonatypeStaging
+)
+
 
 lazy val akkaHttpVersion = "10.0.11"
 lazy val akkaVersion    = "2.5.8"
-
 lazy val playVersion = "2.6.15"
 
 lazy val root = (project in file(".")).

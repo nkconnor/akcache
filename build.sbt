@@ -5,7 +5,7 @@ definedTests in MultiJvm <<= definedTests in Test
 lazy val akkaHttpVersion = "10.0.11"
 lazy val akkaVersion    = "2.5.8"
 
-lazy val playVersion = "2.6.11"
+lazy val playVersion = "2.6.15"
 
 lazy val root = (project in file(".")).
   settings(multiJvmSettings: _*).
@@ -24,11 +24,11 @@ lazy val root = (project in file(".")).
 
       // Play Framework
       // https://mvnrepository.com/artifact/com.typesafe.play/play-cache
-      "com.typesafe.play" %% "play" % playVersion,
       "com.typesafe.play" %% "play-cache" % playVersion,
 
 
       "org.scalatest"     %% "scalatest"            % "3.0.1"         % Test
     )).
+
   configs(MultiJvm)
 

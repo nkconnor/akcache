@@ -1,44 +1,41 @@
 package com.nconnor.akcache.api
 
-import javax.inject.Inject
-import javax.inject.Singleton
-
-import akka.actor.{ ActorRef, ActorSystem, Props }
-import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings, ShardRegion }
+import akka.Done
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.ask
 
-import play.api.cache.CacheApi
-
-import scala.concurrent.Await
+import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 import scala.concurrent.duration._
-
-import com.nconnor.akcache.core.AkCacheActor
+import com.nconnor.akcache.core._
 import com.nconnor.akcache.core.models._
 
+import scala.util.{Failure, Success}
+
 /**
- * Author: Nicholas Connor
- * Date: 1/19/18
- * Package: api
- *
- */
+  * Author: Nicholas Connor
+  * Date: 1/19/18
+  * Package: api
+  *
+  */
 trait AkCluster {
   /**
-   * numberOfShards ::
-   */
+    * numberOfShards ::
+    */
   private val numberOfShards: Int = 1600
 
   /**
-   *
-   */
+    *
+    */
   protected val extractEntityId: ShardRegion.ExtractEntityId = {
     case akMessage: AkMessage => (akMessage.key.toString, akMessage)
   }
 
   /**
-   *
-   */
+    *
+    */
   protected val extractShardId: ShardRegion.ExtractShardId = {
     case akMessage: AkMessage ⇒ (math.abs(akMessage.key.hashCode) % numberOfShards).toString
     case ShardRegion.StartEntity(id) ⇒
@@ -47,21 +44,20 @@ trait AkCluster {
   }
 }
 
-@Singleton
-class AkCache @Inject() (system: ActorSystem) extends CacheApi with AkCluster {
+class AkCache(val system: ActorSystem) extends AkCluster {
   /**
-   *
-   */
+    *
+    */
   implicit val execIn = system.dispatcher
 
   /**
-   *
-   */
+    *
+    */
   implicit val getTimeout: akka.util.Timeout = 10.seconds
 
   /**
-   *
-   */
+    *
+    */
   private val shardRegion: ActorRef = ClusterSharding(system).start(
     typeName = "AkCacheActor",
     entityProps = Props[AkCacheActor],
@@ -71,49 +67,63 @@ class AkCache @Inject() (system: ActorSystem) extends CacheApi with AkCluster {
   )
 
   /**
-   *
-   * @param key
-   * @param value
-   * @param expiration
-   */
-  override def set(key: String, value: Any, expiration: Duration): Unit = shardRegion ! AkSet(key, value, Some(expiration))
+    *
+    * @param key
+    * @param value
+    * @param expiration
+    */
+  def set(key: String, value: Any, expiration: Duration): Done = shardRegion ! AkSet(key, value, Some(expiration))
 
   /**
-   *
-   * @param key
-   */
-  override def remove(key: String): Unit = shardRegion ! AkRemove(key)
+    *
+    * @param key
+    */
+  def remove(key: String): Done = shardRegion ! AkRemove(key)
 
   /**
-   *
-   * @param key
-   * @param expiration
-   * @param orElse
-   * @param evidence$1
-   * @tparam A
-   * @return
-   */
-  override def getOrElse[A](key: String, expiration: Duration)(orElse: => A)(implicit evidence$1: ClassTag[A]): A = {
-    get(key)
-      .getOrElse {
-        val A = orElse
-        shardRegion ! AkSet(key, A, Some(expiration))
-        A
+    *
+    * @param key
+    * @param expiration
+    * @param orElse
+    * @param evidence$1
+    * @tparam A
+    * @return
+    */
+  def getOrElse[A](key: String, expiration: Duration)(orElse: => Future[A])(implicit evidence$1: ClassTag[A]): Future[A] =
+    get(key).flatMap {                               // why does the Async imply anything about obtaining A?
+      _.getOrElse(orElse).andThen {
+        case Success(item) => shardRegion ! AkSet(key, item, Some(expiration))
+        case Failure(ex) => throw ex
       }
-  }
+    }
 
   /**
-   *
-   * @param key
-   * @param evidence$2
-   * @tparam T
-   * @return
-   */
-  override def get[T](key: String)(implicit evidence$2: ClassTag[T]): Option[T] = {
-    val akItem = shardRegion.ask(AkGet(key, None))
+    *
+    * @param key
+    * @param expiration
+    * @param orElse
+    * @param evidence$1
+    * @tparam A
+    * @return
+    */
+  def getOrElse[A](key: String, expiration: Duration)(orElse: => A)(implicit evidence$1: ClassTag[A]): Future[A] =
+    get(key).map {
+      _.getOrElse {
+        val item = orElse
+        shardRegion ! AkSet(key, item, Some(expiration))
+        item
+      }
+    }
+
+  /**
+    *
+    * @param key
+    * @param evidence$2
+    * @tparam T
+    * @return
+    */
+  def get[T](key: String)(implicit evidence$2: ClassTag[T]): Future[Option[T]] =
+    shardRegion.ask(AkGet(key, None))
       .mapTo[Option[AkItem[T]]]
       .map(_.map(_.any))
-
-    Await.result(akItem, atMost = 10.seconds)
-  }
 }

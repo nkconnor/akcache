@@ -1,7 +1,6 @@
 # AkCache
 
-AkCache is an implementation of Play Framework's CacheApi, and is intended as a drop-in replacement of EhCache. It utilizes Akka and Cluster Sharding to support
-resource sharing across a cluster.
+Tiny, distributed, and embeddable cache for Akka based applications. Includes a drop-in replacement for Play Framework's Cache API. 
 
 ## Getting started
 
@@ -17,13 +16,5 @@ Play Framework:
         
 ## Contributing
 
-We would appreciate your help in maintaining and improving AkCache. Please consider making
-a donation to the author or making pull requests.
+We would appreciate your help in maintaining and improving AkCache. Please contribute by raising issues/making pull requests.
 
-
-## Roadmap
-
-TBD
-
-* support for new serializers
-* concurrency controls for caches
